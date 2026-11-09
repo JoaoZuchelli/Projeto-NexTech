@@ -1,431 +1,774 @@
-let modoAtual = null;
-let temaAtual = null;
+/* =====================================================
+  TERMO — Lógica do Jogo (Modo Normal)
+  ===================================================== */
+
+// ---------- ESTADO GLOBAL ----------
+let modoAtual = 'normal';
+let temaAtual = 'Geral';
 let palavraSecreta = "";
 let tentativas = [];
+let tentativaAtual = "";
+let cursorPos = 0;
 let jogoTerminado = false;
-let tempoInicial = null;
+let processandoTentativa = false; // Trava de segurança para evitar múltiplos Enters
+
+// Cronômetro e estatísticas
+let intervaloTempo = null;
+let segundosDecorridos = 0;
+
+let estatisticas = {
+  vitorias: 0,
+  jogos: 0,
+  sequencia: 0
+};
+
 const LIMITE_TENTATIVAS = 6;
 
-function iniciarJogo(modo, tema) {
-    modoAtual = modo;
-    temaAtual = tema;
-    palavraSecreta = "";
-    tentativas = [];
-    jogoTerminado = false;
-    tempoInicial = null;
+// ---------- CONJUNTO DE PALAVRAS PERMITIDAS ----------
+let dicionarioCompletoSet = new Set();
+
+function inicializarDicionario() {
+  dicionarioCompletoSet.clear();
+
+  if (typeof palavrasPorTema !== 'undefined') {
+    Object.values(palavrasPorTema).forEach(lista => {
+      if (Array.isArray(lista)) {
+        lista.forEach(p => {
+          if (p) dicionarioCompletoSet.add(removerAcentos(p.trim().toLowerCase()));
+        });
+      }
+    });
+  }
+
+  if (typeof dicionario5Letras !== 'undefined' && Array.isArray(dicionario5Letras)) {
+    dicionario5Letras.forEach(p => {
+      if (p) dicionarioCompletoSet.add(removerAcentos(p.trim().toLowerCase()));
+    });
+  }
 }
 
+// ---------- FUNÇÃO DE SORTEIO ----------
+function sortearPalavra(tema) {
+  const palavras = palavrasPorTema[tema];
+  const listaNormalizada = palavras.filter(p => removerAcentos(p.trim()).length === 5);
+  const listaParaUsar = listaNormalizada.length > 0 ? listaNormalizada : palavras;
+  const indiceAleatorio = Math.floor(Math.random() * listaParaUsar.length);
+  return listaParaUsar[indiceAleatorio];
+}
 
-const palavrasPorTema = {
-    Geral:
-    [
-        "ABALO", "ABRIR", "ACASO", "ACHAR", "ACIMA", "ACOES", "ADEUS", "AFETO", "AGORA", "AGUAS",
-        "AINDA", "AJUDA", "ALADO", "ALBUM", "ALDEA", "ALEGR", "ALUNO", "AMADO", "AMIGO", "AMORA",
-        "ANEXO", "ANIMO", "ANTES", "APOIO", "AREIA", "AROMA", "ARROZ", "ASSAR", "ASSIM", "ATIVO",
-        "AUTOR", "AVIAO", "BAIXO", "BANCO", "BANHO", "BARCO", "BARRO", "BEBER", "BEIJO", "BELOS",
-        "BICHO", "BOLSA", "BOLSO", "BONDE", "BORDA", "BRACO", "BRASA", "BRAVO", "BREVE", "BRISA",
-        "BROTO", "BUSCA", "CABRA", "CABOS", "CACAU", "CAIXA", "CALMA", "CALOR", "CAMPO", "CANAL",
-        "CANTO", "CAPAZ", "CARNE", "CARRO", "CARTA", "CASAL", "CASAS", "CAUSA", "CEDER", "CEDRO",
-        "CENAS", "CERCA", "CERTO", "CESTA", "CHAMA", "CHAVE", "CHEFE", "CHEIO", "CHUVA", "CINCO",
-        "CIRCO", "CLARO", "CLIMA", "COBRA", "COBRE", "COLAR", "COMER", "CONTA", "COPOS", "CORAL",
-        "CORDA", "CORPO", "CORTE", "COURO", "CRIME", "CRISE", "CULPA", "CURSO", "DADOS", "DANCA",
-        "DEDOS", "DENTE", "DIZER", "DOBRA", "DOCES", "DOIDO", "DONOS", "DRAMA", "DUPLA", "ECOAR",
-        "ELITE", "ENFIM", "ENTRE", "ENVIO", "ERROS", "ESTAR", "ETAPA", "EXAME", "EXATO", "FACIL",
-        "FALHA", "FALSO", "FARDO", "FAROL", "FAZER", "FEIRA", "FEITO", "FELIZ", "FERRO", "FESTA",
-        "FILHO", "FINAL", "FIRME", "FLORA", "FOCAR", "FOLHA", "FORCA", "FORMA", "FORTE", "FOSSO",
-        "FOTOS", "FRACO", "FRASE", "FREIO", "FRUTA", "FUGIR", "FUNDO", "FURIA", "GANHO", "GARFO",
-        "GASTO", "GATOS", "GENRO", "GENTE", "GERAL", "GIRAR", "GOLPE", "GOSTO", "GRAMA", "GRAVE",
-        "GRUPO", "HAVER", "HOMEM", "HONRA", "HOTEL", "IDADE", "IDEAL", "IGUAL", "IMPAR", "INDIO",
-        "IRMAO", "JOGAR", "JOVEM", "JUROS", "JUSTO", "LADOS", "LAPIS", "LARGO", "LASER", "LEGAL",
-        "LEITE", "LETRA", "LIGAR", "LIMAO", "LIMBO", "LIMPO", "LINDA", "LINHA", "LISTA", "LIVRE",
-        "LIVRO", "LOCAL", "LONGE", "LOUCO", "LUGAR", "LUTAR", "MAGIA", "MAIOR", "MALHA", "MANGA",
-        "MANHA", "MARCA", "MARCO", "MARTE", "MASSA", "MATAR", "MEDIR", "MEDOS", "MELAO", "MENOR",
-        "MENTE", "MESAS", "METAL", "METRO", "MEXER", "MIolo", "MISSA", "MODOS", "MOEDA", "MOLHO",
-        "MONTE", "MORAL", "MORAR", "MORTE", "MOTOR", "MUDAR", "MURAL", "MUSEU", "NADAR", "NATAL",
-        "NAVIO", "NEGRO", "NOBRE", "NOITE", "NORTE", "NOTAR", "NOVAS", "NOVOS", "NUVEM", "OBRAS",
-        "OLHAR", "ONTEM", "ORDEM", "OUVIR", "PACTO", "PADRE", "PAGAR", "PALCO", "PALHA", "PAPEL",
-        "PARAR", "PARTE", "PASSO", "PASTA", "PAUSA", "PEDRA", "PEDIR", "PEGAR", "PEITO", "PERDA",
-        "PERTO", "PESCA", "PILHA", "PINTA", "PISTA", "PLACA", "PLANO", "POBRE", "PODER", "POEMA",
-        "PONTO", "PORCA", "PORCO", "PORTA", "PORTO", "POSTO", "PRATO", "PRIMO", "PRECO", "PRESA",
-        "PRETO", "PROVA", "PUDOR", "PUDIM", "PULSO", "QUASE", "QUEDA", "QUERO", "QUILO", "RAIVA",
-        "RAMOS", "RAPAZ", "RAZAO", "REDES", "REGRA", "REINO", "REZAR", "RISCO", "RITMO", "ROCHA",
-        "RODAR", "ROUPA", "SABER", "SABOR", "SALTO", "SALVA", "SANTO", "SAUDE", "SENHA", "SENSO",
-        "SERIE", "SERIO", "SETOR", "SEXTO", "SIGLA", "SINAL", "SITIO", "SOBRE", "SOLTO", "SONHO",
-        "SORTE", "SUAVE", "SUBIR", "SUJAR", "SUPER", "TARDE", "TAXAS", "TECER", "TELHA", "TEMPO",
-        "TENIS", "TERMO", "TERRA", "TESTE", "TEXTO", "TIGRE", "TINHA", "TINTA", "TOCAR", "TODOS",
-        "TOMAR", "TORRE", "TRAMA", "TREVO", "TRIGO", "TRONO", "TROCA", "TURMA", "UNIAO", "UNICO",
-        "URUBU", "USADO", "USINA", "VAGAS", "VALOR", "VAPOR", "VASTO", "VELHO", "VENDA", "VENTO",
-        "VERAO", "VERBO", "VERDE", "VERME", "VESTE", "VETOR", "VIGOR", "VINHO", "VIRAR", "VISTA",
-        "VITAL", "VIVER", "VOCAL", "VOGAL", "VOLTA", "VOTOS", "ZEBRA", "ZERAR"
-    ],
-    Verbos: [
-        "ACHAR", "ADIAR", "AFIAR", "ALIAR", "ANDAR", "ARCAR", "ARMAR", "ASSAR", "ATUAR", "AVIAR",
-        "BABAR", "BEBER", "BICAR", "BIPAR", "BISAR", "BOIAR", "BOLAR", "BOTAR", "CALAR", "CASAR",
-        "CATAR", "CAVAR", "CEGAR", "CHIAR", "CITAR", "COLAR", "CORAR", "COTAR", "CRIAR", "CURAR",
-        "DANAR", "DATAR", "DITAR", "DOMAR", "DOPAR", "DOSAR", "DOTAR", "DURAR", "ECOAR", "ERRAR",
-        "ESTAR", "FALAR", "FALIR", "FICAR", "FILAR", "FINAR", "FITAR", "FIXAR", "FOCAR", "FREAR",
-        "FRUIR", "FUGIR", "FUMAR", "FURAR", "GELAR", "GERAR", "GERIR", "GEMER", "GIRAR", "GOZAR",
-        "GUIAR", "HAVER", "IDEAR", "JOGAR", "JURAR", "LAVAR", "LEGAR", "LESAR", "LEVAR", "LIDAR",
-        "LIGAR", "LIMAR", "LIXAR", "LOCAR", "LOTAR", "LUTAR", "MAMAR", "METER", "MIMAR", "MINAR",
-        "MIRAR", "MOFAR", "MORAR", "MOVER", "MUDAR", "MUNIR", "MURAR", "NADAR", "NEGAR", "NOTAR",
-        "OBRAR", "OBTER", "ODIAR", "OPTAR", "ORNAR", "OUVIR", "PAGAR", "PARAR", "PECAR", "PEGAR",
-        "PELAR", "PENAR", "PESAR", "PEDIR", "PICAR", "PILAR", "PINAR", "PISAR", "PODAR", "PODER",
-        "POLIR", "POSAR", "PUNIR", "PUXAR", "RALAR", "RASAR", "REGER", "RETER", "RODAR", "ROGAR",
-        "ROLAR", "RUMAR", "SABER", "SACAR", "SAFAR", "SANAR", "SECAR", "SELAR", "SONAR", "SUBIR",
-        "SUJAR", "SUMIR", "TAPAR", "TECER", "TEMER", "TIRAR", "TOCAR", "TOMAR", "TOSAR", "TRAIR",
-        "TRIAR", "UNGIR", "URDIR", "VALER", "VARAR", "VEDAR", "VELAR", "VETAR", "VIRAR", "VISAR",
-        "VIVER", "ZERAR", "ZELAR", "CEDER", "COMER", "COSER", "COZER", "DEVER", "DIZER", "LATIR",
-        "MEDIR", "RUGIR"
-    ],
-    
-    Alimentos: [
-        // Frutas
-        "ABACATE", "ABACAXI", "ACEROLA", "AÇAÍ", "AMEIXA", "AMORA", "BANANA", "CAJU",
-        "CARAMBOLA", "CEREJA", "DAMASCO", "FIGO", "FRAMBOESA", "GOIABA", "GRAVIOLA",
-        "JABUTICABA", "JACA", "KIWI", "LARANJA", "LIMÃO", "MAÇÃ", "MAMÃO", "MANGA",
-        "MARACUJÁ", "MELANCIA", "MELÃO", "MEXERICA", "MORANGO", "NECTARINA", "PERA",
-        "PÊSSEGO", "PITANGA", "PITAYA", "ROMÃ", "TANGERINA", "UVA", "MIRTILO",
-        "CRANBERRY", "LICHIA", "LONGAN", "MANGOSTÃO", "JENIPAPO", "SERIGUELA",
-        "PITOMBA", "CAQUI", "COCO", "TAMARINDO", "TORANJA", "CUPUAÇU", "BURITI",
-        "BACABA", "UMBU", "PEQUI", "PUPUNHA", "AÇAÍ", "CEREJA-DO-RIO-GRANDE",
-
-        // Verduras, legumes e hortaliças
-        "ABÓBORA", "ABOBRINHA", "ACELGA", "AGRIÃO", "ALCACHOFRA", "ALFACE", "ALHO",
-        "ALHO-PORÓ", "ASPARGO", "BATATA", "BATATA-DOCE", "BERINJELA", "BETERRABA",
-        "BRÓCOLIS", "CEBOLA", "CEBOLINHA", "CENOURA", "CHUCHU", "COGUMELO", "COUVE",
-        "COUVE-FLOR", "ERVILHA", "ESPINAFRE", "GENGIBRE", "INHAME", "JILÓ", "MANDIOCA",
-        "MANDIOQUINHA", "MAXIXE", "MILHO", "NABO", "PALMITO", "PEPINO", "PIMENTÃO",
-        "QUIABO", "RABANETE", "REPOLHO", "RÚCULA", "SALSÃO", "SALSA", "TOMATE",
-        "VAGEM", "ALMEIRÃO", "CHICÓRIA", "ENDÍVIA", "ESCAROLA", "MOSTARDA", "ORA-PRO-NÓBIS",
-        "RADICCHIO", "NIRA", "PIMENTA", "BATATA-BAROA", "CARÁ", "CARA-MOELA",
-
-        // Grãos, cereais, farinhas e sementes
-        "ARROZ", "AVEIA", "CEVADA", "CENTEIO", "TRIGO", "MILHO", "QUINOA", "AMARANTO",
-        "FEIJÃO", "LENTILHA", "GRÃO-DE-BICO", "ERVILHA", "SOJA", "CANJICA", "FUBÁ",
-        "FARINHA", "POLVILHO", "TAPIOCA", "SAGU", "CUSCUZ", "GRANOLA", "GERGELIM",
-        "CHIA", "LINHAÇA", "GIRASSOL", "CASTANHA", "AMÊNDOA", "NOZ", "AVELÃ",
-        "PISTACHE", "AMENDOIM", "MACADÂMIA", "PECÃ", "CASTANHA-DO-PARÁ",
-        "CASTANHA-DE-CAJU", "PIPOCA", "FARELO", "FLOCÃO", "ARARUTA",
-
-        // Carnes, aves, peixes e frutos do mar
-        "ACÉM", "ALCATRA", "ARANHA", "BACON", "BISTECA", "CARNE", "COSTELA", "CUPIM",
-        "FÍGADO", "FRALDINHA", "FRANGO", "LOMBO", "LINGUIÇA", "MORTADELA", "PANCETA",
-        "PATO", "PERU", "PERNIL", "PICANHA", "PRESUNTO", "SALAME", "SALSICHA",
-        "SARDINHA", "SALMÃO", "ATUM", "BACALHAU", "BAGRE", "CAMARÃO", "CARANGUEJO",
-        "LAGOSTA", "LULA", "MEXILHÃO", "OSTRA", "POLVO", "PESCADA", "PIRARUCU",
-        "TILÁPIA", "TRUTA", "TAINHA", "MERLUZA", "ANCHOVA", "ARENQUE", "DOURADO",
-        "PINTADO", "RÃ", "MOELA", "CORDEIRO", "CODORNA", "COELHO", "JAVALI",
-
-        // Leites, queijos e derivados
-        "LEITE", "IOGURTE", "MANTEIGA", "MARGARINA", "REQUEIJÃO", "RICOTA", "MUÇARELA",
-        "PARMESÃO", "PROVOLONE", "GORGONZOLA", "CHEDDAR", "MINAS", "COALHO", "CATUPIRY",
-        "CREME", "NATA", "COALHADA", "KEFIR", "LEITELHO", "LEITE-CONDENSADO",
-        "LEITE-EM-PÓ", "CREAM-CHEESE", "MASCARPONE", "BRIE", "CAMEMBERT", "EMMENTAL",
-        "GRUYÈRE", "PECORINO", "FETA", "COTTAGE", "BÚFALA",
-
-        // Pães, massas e salgados
-        "PÃO", "BAGUETE", "BISNAGA", "BISCOITO", "BOLACHA", "TORRADA", "CROISSANT",
-        "BRIOCHE", "PÃO-DE-QUEIJO", "PÃO-DE-FORMA", "PÃO-INTEGRAL", "PÃO-SÍRIO",
-        "PÃO-ÁRABE", "PIZZA", "LASANHA", "RAVIOLI", "NHOQUE", "ESPAGUETE", "TALHARIM",
-        "MACARRÃO", "PENNE", "FUSILLI", "FARFALLE", "CAPELETI", "CANELONE", "RONDELLI",
-        "PANQUECA", "CREPE", "TORTA", "EMPADA", "EMPADÃO", "COXINHA", "QUIBE",
-        "ESFIHA", "PASTEL", "CROQUETE", "RISSOLE", "ENROLADINHO", "SANDUÍCHE",
-        "HAMBÚRGUER", "CACHORRO-QUENTE", "TACO", "BURRITO", "WRAP", "FOCACCIA",
-        "PÃOZINHO", "PRETZEL", "DONUT", "WAFFLE", "PANINI", "TORTILHA", "POLENTA",
-        "PAMONHA", "TAMAL", "FAROFA", "PIRÃO", "ANGU", "BAIÃO-DE-DOIS", "FEIJOADA",
-
-        // Pratos e refeições
-        "ARROZ-DOCE", "RISOTO", "MOQUECA", "VATAPÁ", "ACARAJÉ", "TUTU", "DOBRADINHA",
-        "ESCONDIDINHO", "ESTROGONOFE", "PARMEGIANA", "CHURRASCO", "SARAPATEL",
-        "GALINHADA", "QUIRERA", "CANJA", "CALDO", "SOPA", "CREME", "PURÊ", "OMELETE",
-        "OVO", "OVO-COZIDO", "OVO-POCHE", "SALADA", "CEVICHE", "CARPACCIO", "SUSHI",
-        "SASHIMI", "TEMPURÁ", "YAKISOBA", "RAMEN", "UDON", "GYOZA", "TEMAKI", "MISSÔ",
-        "CURRY", "PAELLA", "GAZPACHO", "HOMUS", "FALAFEL", "TABULE", "COUSCOUS",
-        "GUACAMOLE", "RATATOUILLE", "MUSSACA", "POLPETONE", "ALMÔNDEGA", "MEDALHÃO",
-        "PANADO", "FRICASSÊ", "BOBÓ", "CHILI", "PICLES", "CONSERVA", "ANTEPASTO",
-
-        // Doces, sobremesas e confeitaria
-        "AÇÚCAR", "ADOÇANTE", "MEL", "GELEIA", "DOCE", "BOLO", "TORTA", "PUDIM",
-        "MOUSSE", "SORVETE", "PICOLÉ", "GELATO", "BROWNIE", "COOKIE", "CUPCAKE",
-        "MUFFIN", "WAFFLE", "PANQUECA", "BRIGADEIRO", "BEIJINHO", "PAÇOCA", "PÉ-DE-MOLEQUE",
-        "QUINDIM", "COCADA", "CANJICA", "ARROZ-DOCE", "CURAU", "MANJAR", "PAVÊ",
-        "QUINDÃO", "RABANADA", "CHURROS", "SONHO", "ROSQUINHA", "BALA", "PIRULITO",
-        "CARAMELO", "GOMA", "MARSHMALLOW", "GELATINA", "MERENGUE", "SUSPIRO",
-        "MACARON", "TRUFA", "BOMBOM", "CHOCOLATE", "GANACHE", "PRALINÉ", "FUDGE",
-        "ALFAJOR", "PALHA-ITALIANA", "PÃO-DE-MEL", "ROCambole", "MIL-FOLHAS",
-        "CHEESECAKE", "TIRAMISÙ", "PANETONE", "CHOCOTONE", "STRUDEL", "CRUMBLE",
-        "COMPOTA", "FRUTA-CRISTALIZADA", "DOCE-DE-LEITE", "DOCE-DE-ABÓBORA",
-        "DOCE-DE-BANANA", "DOCE-DE-COCO", "MARMELADA",
-
-        // Temperos, ervas, molhos e condimentos
-        "AÇAFRÃO", "ALECRIM", "ANIS", "CANELA", "CARDAMOMO", "CRAVO", "COMINHO",
-        "COENTRO", "CÚRCUMA", "CURRY", "ERVA-DOCE", "ESTRAGÃO", "HORTELÃ", "LOURO",
-        "MANJERICÃO", "MANJERONA", "NOZ-MOSCADA", "ORÉGANO", "PÁPRICA", "PIMENTA",
-        "SAL", "SALSA", "TOMILHO", "URUCUM", "VINAGRE", "AZEITE", "ÓLEO", "MOLHO",
-        "MOSTARDA", "MAIONESE", "KETCHUP", "BARBECUE", "SHOYU", "TARI", "WASABI",
-        "MISSÔ", "PIMENTA-DO-REINO", "PIMENTA-ROSA", "PIMENTA-CAIENA", "ALHO-PORÓ",
-        "ALCAPARRA", "ALHO", "CEBOLA", "CHIMICHURRI", "PESTO", "TÁRTARO", "AIOLI",
-        "VINAGRETE", "MELADO", "TAHINE", "HARISSA", "MANTEIGA-GHEE",
-
-        // Bebidas
-        "ÁGUA", "CAFÉ", "CHÁ", "SUCO", "LEITE", "VITAMINA", "LIMONADA", "LARANJADA",
-        "REFRIGERANTE", "GUARANÁ", "MATE", "TERERÉ", "CHIMARRÃO", "ACHOCOLATADO",
-        "CAPPUCCINO", "EXPRESSO", "MACCHIATO", "MOCHA", "LATTE", "FRAPPÉ", "SMOOTHIE",
-        "MILKSHAKE", "KOMBUCHA", "KÉFIR", "HIDROMEL", "SIDRA", "VINHO", "CERVEJA",
-        "LICOR", "CACHAÇA", "SAQUÊ", "UÍSQUE", "VODCA", "TEQUILA", "GIM", "RUM",
-        "ESPUMANTE", "CHAMPANHE", "PONCHE", "XAROPE", "CALDO-DE-CANA", "ÁGUA-DE-COCO",
-
-        // Outros alimentos e ingredientes
-        "CACAU", "CHOCOLATE", "BAUNILHA", "COCO", "CREME", "GELATINA", "FERMENTO",
-        "BICARBONATO", "AMIDO", "GLÚTEN", "COLÁGENO", "PROTEÍNA", "WHEY", "LEVEDURA",
-        "TOFU", "TEMPEH", "SEITAN", "NATTO", "ALGA", "NORI", "KOMBU", "AGAR-AGAR",
-        "PALMITO", "AZEITONA", "ALCAPARRA", "PICLES", "TOMATE-SECO", "TOMATE-CEREJA",
-        "FRUTA-PÃO", "JACA", "BROTO", "BROTO-DE-FEIJÃO", "BROTO-DE-ALFAFA",
-        "OVAS", "CAVIAR", "TRUFA", "FUNGHI", "SHIITAKE", "SHIMEJI", "PORTOBELLO",
-        "CHAMPIGNON", "PLEUROTUS", "TAMARINDO", "MELAÇO", "RAPADURA", "PANELA",
-        "PILÃO", "FARINHA-DE-MANDIOCA", "FARINHA-DE-AVEIA", "FARINHA-DE-ARROZ",
-        "FARINHA-DE-COCO", "FARINHA-DE-AMÊNDOA", "FARINHA-DE-MILHO"
-    ],
-    Objetos: [
-        // Casa e móveis
-        "ABAJUR", "ARMARIO", "ARQUIVO", "BANCO", "BANQUETA", "BERCO", "BIDE", "CADEIRA",
-        "CAMA", "CANECA", "CAPACHO", "CARRINHO", "CARTAZ", "CINZEIRO", "COFRE", "COLCHAO",
-        "COMODA", "CRISTALEIRA", "CRIADO", "CORTINA", "CRISTAL", "CUBA", "CUNHA", "DEGRAU",
-        "ESPELHO", "ESTANTE", "ESTOFADO", "FILTRO", "GAVETA", "GUARDA-ROUPA", "JANELA",
-        "LAMPADA", "LANTERNA", "LIXEIRA", "MACA", "MESA", "MOLDURA", "NICHO", "PAINEL",
-        "POLTRONA", "PUFE", "QUADRO", "RACK", "RELOGIO", "SOFA", "TAPETE", "TAPECARIA",
-        "TRAVESSEIRO", "VASO", "VENTILADOR", "VITRINE", "CÔMODA", "PUXADOR", "PRATELEIRA",
-        "PERSIANA", "BIOMBO", "CABIDEIRO", "SAPATEIRA", "BAU", "BAULETE", "CABECEIRA",
-        "MANCEBO", "MESA-DE-CENTRO", "MESA-DE-JANTAR", "MESA-DE-CANTO", "ESCRIVANINHA",
-
-        // Cozinha e utensílios
-        "ABRIDOR", "AFIADOR", "ASSADEIRA", "BACIA", "BALANCA", "BULE", "CAFETEIRA", "CALDEIRAO",
-        "CANUDO", "CANECA", "CHALEIRA", "CHAPA", "COADOR", "COLHER", "CONCHA", "COPO",
-        "CORTADOR", "CUSCUZEIRA", "DESCASCADOR", "ESCORREDOR", "ESCUMADEIRA", "ESPATULA",
-        "ESPREMEDOR", "FACA", "FAQUEIRO", "FORMA", "FRIGIDEIRA", "GARFO", "GARRAFA",
-        "GARRAFAO", "JARRA", "JOGO-DE-PRATOS", "LATA", "LEITEIRA", "LIQUIDIFICADOR",
-        "LIXEIRA", "MAÇARICO", "MARMITA", "PANELA", "PEGADOR", "PENEIRA", "PILAO",
-        "PINCEL", "POTE", "PRATO", "RALADOR", "ROLO", "SACA-ROLHAS", "SALEIRO", "TALHER",
-        "TAMPA", "TIGELA", "TORRADEIRA", "TRAVESSA", "XICARA", "PANELA-DE-PRESSAO",
-        "TÁBUA", "ESPAGUETEIRA", "CUSCUZEIRA", "MOEDOR", "AMASSADOR", "ABRIDOR-DE-LATA",
-        "PORTA-COPOS", "PORTA-GUARDANAPO", "PORTA-TEMPEROS", "ESCORREDOR-DE-LOUCA",
-
-        // Eletrônicos e tecnologia
-        "ANTENA", "BATERIA", "CABO", "CAIXA-DE-SOM", "CAMERA", "CELULAR", "COMPUTADOR",
-        "CONTROLE", "DRONE", "FONE", "IMPRESSORA", "JOYSTICK", "LAPTOP", "MONITOR",
-        "MOUSE", "NOTEBOOK", "PENDRIVE", "PROCESSADOR", "PROJETOR", "RÁDIO", "ROTEADOR",
-        "SCANNER", "TABLET", "TECLADO", "TELEFONE", "TELEVISAO", "WEBCAM", "MICROFONE",
-        "CARREGADOR", "ADAPTADOR", "ALTO-FALANTE", "AMPLIFICADOR", "ESTABILIZADOR",
-        "EXTENSAO", "FONTE", "HD", "SSD", "MEMORIA", "PLACA-MAE", "PLACA-DE-VIDEO",
-        "REPETIDOR", "SWITCH", "MODEM", "HEADSET", "SMARTWATCH", "CONTROLE-REMOTO",
-        "VIDEO-GAME", "CONSOLE", "KINDLE", "E-READER", "GPS", "POWERBANK", "PROJETOR",
-        "TELEVISOR", "DVD", "BLU-RAY", "DISQUETE", "CD", "PEN-DRIVE", "CARTAO-DE-MEMORIA",
-
-        // Ferramentas
-        "ALICATE", "ANCINHO", "ARCO", "BROCA", "CAVADEIRA", "CHAVE", "CHAVEIRO", "CINZEL",
-        "COMPASSO", "DESEMPENADEIRA", "ENXADA", "ENXADÃO", "ESCADA", "ESQUADRO", "ESTILETE",
-        "FORMÃO", "FOICE", "FURADEIRA", "GRAMPO", "LIMA", "LIXA", "MARTELO", "MARRETA",
-        "MACHADO", "NIVEL", "PA", "PICARETA", "PLAINA", "PONTEIRO", "PRUMO", "PULVERIZADOR",
-        "SERRA", "SERROTE", "SOPRADOR", "TALHADEIRA", "TORQUES", "TRENA", "TORNO", "TORQUIMETRO",
-        "PARAFUSADEIRA", "ESMERILHADEIRA", "LIXADEIRA", "SOLDADOR", "GRAMPEADOR", "REBITE",
-        "CHAVE-DE-BOCA", "CHAVE-ALLEN", "CHAVE-PHILIPS", "CHAVE-DE-FENDA", "CHAVE-INGLESA",
-        "CHAVE-ESTRELA", "CHAVE-CATRACA", "ALAVANCA", "MACACO", "MORSA", "SARGENTO",
-        "CORTADOR-DE-VIDRO", "CORTA-VERGALHAO", "DETECTOR", "MULTIMETRO", "PAQUIMETRO",
-
-        // Material escolar e escritório
-        "AGENDA", "APAGADOR", "APONTADOR", "BORRACHA", "CADERNO", "CALCULADORA", "CANETA",
-        "CANETINHA", "CARIMBO", "CLIPS", "COLA", "COMPASSO", "CORRETIVO", "ESTOJO",
-        "ETIQUETA", "FICHARIO", "FITA", "GRAMPEADOR", "GRAMPO", "LAPISEIRA", "LAPIS",
-        "MARCADOR", "MOCHILA", "PAPEL", "PASTA", "PERFURADOR", "PINCEL", "PINCEL-ATÔMICO",
-        "POST-IT", "PRANCHETA", "RÉGUA", "TESOURA", "TINTA", "TRANSFERIDOR", "ESQUADRO",
-        "ENVELOPE", "PORTA-LAPIS", "PORTA-CANETAS", "PORTA-CLIPS", "ORGANIZADOR", "PASTILHA",
-        "CARTOLINA", "FOLHA", "BLOCO", "BLOCO-DE-NOTAS", "LIVRO", "DICIONARIO", "REVISTA",
-        "JORNAL", "MAPA", "GLOBO", "PAINEL", "QUADRO-BRANCO", "FLANELÓGRAFO",
-
-        // Roupas e acessórios
-        "ANEL", "BOLSA", "BONE", "BONÉ", "BRINCO", "CACHECOL", "CALCA", "CAMISA", "CAMISETA",
-        "CAPA", "CAPACETE", "CARTEIRA", "CINTO", "COLAR", "CORRENTE", "GRAVATA", "LUVA",
-        "MEIA", "OCULOS", "PULSEIRA", "RELOGIO", "SANDALIA", "SAPATO", "TENIS", "CHAPEU",
-        "CHINELO", "BOTA", "VESTIDO", "SAIA", "JAQUETA", "CASACO", "BLUSA", "MOLETOM",
-        "PIJAMA", "UNIFORME", "AVENTAL", "MACACAO", "SUSPENSORIO", "TIARA", "PRESILHA",
-        "GRAMPO", "FIVELA", "BROCHE", "PINGENTE", "PORTA-MOEDAS", "NECESSAIRE", "MALA",
-        "MALOTE", "POCHETE", "CARTEIRA", "GUARDA-CHUVA", "SOMBRINHA", "BOLSA-TERMICA",
-        "CANELEIRA", "COTOVELEIRA", "JOELHEIRA", "COTURNO", "BANDANA", "TOUCA", "GORRO",
-
-        // Banheiro e higiene
-        "ALGODAO", "BANHEIRA", "BARBEADOR", "CABIDE", "ESCOVA", "ESPELHO", "ESPONJA",
-        "FIO-DENTAL", "FRASCO", "LÂMINA", "LIXEIRA", "PENTE", "PINÇA", "SABONETEIRA",
-        "SECADOR", "TOALHA", "TOALHEIRO", "TORNEIRA", "TUBO", "VÁLVULA", "VASO-SANITARIO",
-        "CHUVEIRO", "DUCHA", "RALINHO", "TAPETE", "CESTO", "CESTA", "PORTA-SHAMPOO",
-        "PORTA-SABONETE", "PORTA-ESCOVA", "ESCOVA-DENTAL", "ESCOVA-DE-CABELO",
-        "CORTADOR-DE-UNHA", "LIXA-DE-UNHA", "ALICATE-DE-UNHA", "PAPEL-HIGIENICO",
-
-        // Limpeza e organização
-        "BALDE", "VASSOURA", "RODO", "PÁ", "ESFREGÃO", "ASPIRADOR", "SACO", "CESTO",
-        "CESTA", "PANO", "FLANELA", "ESPANADOR", "MOP", "PULVERIZADOR", "BALDE-ESPREMEDOR",
-        "LAVADORA", "SECADORA", "FERRO", "PASSADEIRA", "VARAL", "PREGADOR", "CABIDE",
-        "ESCOVA", "ESPONJA", "RODINHO", "LIXEIRA", "SACO-DE-LIXO", "PORTA-VASSOURA",
-        "ORGANIZADOR", "CAIXA", "CAIXOTE", "GAVETEIRO", "ETIQUETADORA", "ASPIRADOR-PORTATIL",
-
-        // Jardim e ferramentas de jardinagem
-        "REGADOR", "MANGUEIRA", "TESOURA", "ANCINHO", "ENXADA", "PÁ", "VASO", "CACHEPÔ",
-        "PULVERIZADOR", "CORTADOR-DE-GRAMA", "APARADOR", "PODADOR", "MACHADO", "SACHO",
-        "CARRETEL", "ESPALHADOR", "PLANTADOR", "SERRA", "CARRINHO-DE-MAO", "BOMBA",
-        "ASPERSOR", "BICO", "ADAPTADOR", "CONECTOR", "ANCINHO-DE-MAO", "PAZINHA",
-
-        // Construção e materiais
-        "TIJOLO", "TELHA", "CIMENTO", "AREIA", "PEDRA", "BLOCO", "VIGA", "TUBO", "CANO",
-        "JOELHO", "LUVA", "REGISTRO", "TORNEIRA", "DOBRADIÇA", "FECHADURA", "CADEADO",
-        "PARAFUSO", "PORCA", "ARRUELA", "PREGO", "BUCHA", "REBITE", "CABO", "FIO",
-        "DISJUNTOR", "FUSIVEL", "TOMADA", "PLUGUE", "INTERRUPTOR", "LUMINARIA", "LAMPADA",
-        "CONECTOR", "EXTENSAO", "ROLDANA", "POLIA", "CORRENTE", "CORDA", "CABO-DE-AÇO",
-        "BROCA", "CHUMBADOR", "ESPACADOR", "VEDANTE", "SILICONE", "SELANTE", "MANTA",
-        "LONA", "TELA", "GRADE", "PORTAO", "JANELA", "PORTA", "BATENTE", "MARCO",
-
-        // Transporte e veículos
-        "BICICLETA", "CAPACETE", "CORRENTE", "PEDAL", "SELIM", "GUIDAO", "RODA", "PNEU",
-        "CAMARA", "BOMBA", "CADEADO", "FAROL", "LANTERNA", "RETROVISOR", "VOLANTE",
-        "CAMBIO", "EMBREAGEM", "FREIO", "MOTOR", "BATERIA", "RADIADOR", "PARACHOQUE",
-        "MACACO", "TRIANGULO", "EXTINTOR", "CHAVE-DE-RODA", "CALOTA", "ESTEPE", "BUZINA",
-        "GPS", "PAINEL", "AIRBAG", "BOLSA", "REBOQUE", "ENGATE", "CARRETA", "CARRINHO",
-        "PATINETE", "SKATE", "PRANCHA", "BARCO", "CAIAQUE", "CANOA", "REMO", "VELA",
-        "ÂNCORA", "BOIA", "COLETE", "MOTOR-DE-POPA", "HELICES", "TROLE", "GUINCHO",
-
-        // Música, arte e lazer
-        "VIOLAO", "GUITARRA", "BAIXO", "BATERIA", "TECLADO", "PIANO", "FLAUTA", "VIOLINO",
-        "VIOLA", "HARPA", "TROMPETE", "TROMBONE", "CLARINETE", "SAXOFONE", "TAMBOR",
-        "TAMBORIM", "PANDEIRO", "CHOCALHO", "AGOGO", "BERIMBAU", "GAITA", "ACORDEAO",
-        "UKULELE", "CAVAQUINHO", "MICROFONE", "PEDESTAL", "AMPLIFICADOR", "CAIXA-DE-SOM",
-        "FONE", "PARTITURA", "ESTANTE-DE-PARTITURA", "CAVALETE", "TELA", "PALETA", "PINCEL",
-        "LAPIS-DE-COR", "GIZ", "TINTA", "AQUARELA", "ARGILA", "MASSA", "TESOURA", "ESTILETE",
-        "BOLA", "BONECA", "BONECO", "CARRINHO", "PIAO", "PETECA", "IOIO", "DOMINO", "DADO",
-        "BARALHO", "TABULEIRO", "XADREZ", "DAMAS", "QUEBRA-CABECA", "BICICLETA", "PATINS",
-        "SKATE", "BAMBOLÊ", "CORDA", "BARRACA", "SACO-DE-DORMIR", "BINOCULO", "LUNETA",
-        "TELESCOPIO", "BUSSOLA", "CRONOMETRO", "APITO", "MEDALHA", "TROFEU", "ALVO",
-
-        // Acessórios e itens diversos
-        "CHAVE", "CHAVEIRO", "CADEADO", "CARTAO", "DOCUMENTO", "MOEDA", "DINHEIRO", "NOTA",
-        "CARIMBO", "SELO", "ETIQUETA", "LACRE", "CORDA", "FITA", "BARBANTE", "ELASTICO",
-        "CLIP", "MOSQUETAO", "GANCHO", "ARGOLA", "IMÃ", "IMÃ DE GELADEIRA", "CORRENTE",
-        "CAIXA", "PACOTE", "EMBALAGEM", "SACO", "SACOLA", "ENVELOPE", "MALA", "MOCHILA",
-        "PORTA-RETRATO", "PORTA-CHAVES", "PORTA-JOIAS", "PORTA-DOCUMENTOS", "PORTA-CARTAO",
-        "PORTA-REVISTA", "PORTA-CELULAR", "SUPORTE", "PEDESTAL", "TRIPE", "GANCHO", "PRESILHA",
-        "GRAMPO", "ABRACADEIRA", "FIVELA", "MOSQUETAO", "VENTOSA", "ROLDANA", "POLIA",
-        "ENGRENAGEM", "MOLA", "ROLAMENTO", "CORRENTE", "EIXO", "ALAVANCA", "MANIVELA",
-        "BOTAO", "INTERRUPTOR", "SENSOR", "CONTROLE", "MEDIDOR", "TERMOMETRO", "BAROMETRO",
-        "HIGROMETRO", "BALANCA", "CRONOMETRO", "AMPULHETA", "BÚSSOLA", "BINOCULO", "LUPA",
-        "LENTE", "OCULAR", "PRISMA", "ESQUADRO", "TRANSFERIDOR", "REGUA", "TRENA"
-    ],
-    Animais: [
-        // Mamíferos
-        "ABELHA", "ALCE", "ANTA", "ANTILOPE", "ARIRANHA", "ASNO", "BALEIA", "BANDICUTE",
-        "BISONTE", "BODE", "BOI", "BUFALO", "BURRO", "CABRA", "CACHORRO", "CAMELO",
-        "CAPIVARA", "CARACAL", "CARNEIRO", "CASTOR", "CAVALO", "CHACAL", "CHIMPANZE",
-        "CHINCHILA", "COALA", "COIOTE", "COTIA", "DROMEDARIO", "ELEFANTE", "ESQUILO",
-        "FENECO", "FURAO", "GAMBÁ", "GATO", "GIRAFA", "GORILA", "HAMSTER", "HIENA",
-        "HIPOPOTAMO", "IAQUE", "JAGUAR", "JAVALI", "JUMENTO", "LEAO", "LEOPARDO",
-        "LEBRE", "LONTRA", "LOBO", "MACACO", "MAMUTE", "MANGUSTO", "MARMOTA", "MICO",
-        "MORCEGO", "MORSA", "ONCA", "ORANGOTANGO", "ORNITORRINCO", "OTARIA", "PANDA",
-        "PANTERA", "PACA", "PORCO", "PORCO-ESPINHO", "PREGUICA", "QUATI", "RAPOSA",
-        "RATO", "RINOCERONTE", "SAGUI", "SURICATO", "TAMANDUA", "TAPIR", "TATU",
-        "TIGRE", "TOUPEIRA", "URSO", "VEADO", "ZEBRA", "ZORRO", "CANGURU", "DUGONGO",
-        "FURÃO", "JERBOA", "LÊMURE", "MUSARANHO", "OKAPI", "PEIXE-BOI", "PETREL",
-        "PÔNEI", "PUMA", "SERVAL", "TARSIUS", "WOMBAT", "YAK",
-
-        // Cães e felinos
-        "BEAGLE", "BOXER", "BULDOGUE", "CANICHE", "CHIHUAHUA", "DÁLMATA", "DOBERMANN",
-        "HUSKY", "LABRADOR", "MALTES", "PINSCHER", "PUG", "ROTTWEILER", "SAMOIEDA",
-        "SCHNAUZER", "SHARPEI", "SHIH-TZU", "SIAMES", "SPHYNX", "ANGORA", "PERSA",
-        "BENGAL", "SAVANNAH", "MAINE-COON", "RAGDOLL", "BIRMANES", "BOMBAY",
-
-        // Aves
-        "ÁGUIA", "ALBATROZ", "ANDORINHA", "ARARA", "AVESTRUZ", "BACURAU", "BEIJA-FLOR",
-        "BEM-TE-VI", "BICO-DE-LACRE", "BIGUÁ", "CANARIO", "CARCARÁ", "CARDINAL",
-        "CATURRITA", "CISNE", "CODORNA", "CORUJA", "CORVO", "EMA", "FAISÃO", "FALCÃO",
-        "FLAMINGO", "FRANGO", "GARÇA", "GANSO", "GAVIÃO", "GRALHA", "GUARÁ", "HARPIA",
-        "ÍBIS", "JACU", "JANDAIA", "JOÃO-DE-BARRO", "MARITACA", "MELRO", "PAPAGAIO",
-        "PARDAL", "PATO", "PAVÃO", "PELICANO", "PERDIZ", "PERIQUITO", "PICA-PAU",
-        "PINGUIM", "PINTASSILGO", "POMBO", "QUERO-QUERO", "SABIÁ", "SARACURA",
-        "SEREMA", "SERIEMA", "TANGARÁ", "TICO-TICO", "TORDO", "TUCANO", "URUBU",
-        "UACARI", "ANU", "ARAPONGA", "ARACUÃ", "CABURÉ", "CURICACA", "CUCO", "FREGATA",
-        "MAÇARICO", "MUTUM", "PAPAGAIO-DO-MAR", "PETREL", "ROLINHA", "TESOURINHA",
-
-        // Répteis
-        "ANACONDA", "BOA", "CASCAVEL", "CAMALEÃO", "CÁGADO", "CALANGO", "CROCODILO",
-        "DRAGÃO-DE-KOMODO", "GAVIAL", "IGUANA", "JACARÉ", "JIBOIA", "LAGARTIXA",
-        "LAGARTO", "MOCÓ", "SALAMANTA", "SUCURI", "TEIÚ", "TARTARUGA", "TARTARUGA-MARINHA",
-        "CÓBRA", "PÍTON", "SERPENTE", "TUATARA", "GECO", "MONITOR", "CASCAVEL-DO-CAMPO",
-
-        // Anfíbios
-        "AXOLOTE", "CECÍLIA", "FERNANDO", "PERERECA", "RÃ", "RÃ-TOURO", "SALAMANDRA",
-        "SAPO", "SAPO-CURURU", "TRITÃO", "BORBOLETA", "GIRINO", "OLM", "PROTEU",
-
-        // Peixes
-        "ANCHOVA", "ARENQUE", "ATUM", "BACALHAU", "BAGRE", "BARRACUDA", "BETTA", "BOTO",
-        "CAVALA", "CHERNE", "CIANO", "DOURADO", "ESPADA", "ESTURJÃO", "GARoupa", "GUPI",
-        "LAMBARI", "LINGUADO", "MERLUZA", "MOREIA", "PACU", "PIRANHA", "PIRARUCU",
-        "PINTADO", "PORAQUÊ", "RAIA", "ROBALO", "SALMÃO", "SARDINHA", "TILÁPIA",
-        "TRAÍRA", "TRUTA", "TUBARÃO", "TAINHA", "PEIXE-LUA", "PEIXE-PALHAÇO",
-        "PEIXE-ESPADA", "PEIXE-PAPAGAIO", "CAVALO-MARINHO", "PEIXE-LEÃO", "MERO",
-        "MORÉIA", "PIRARARA", "TAMBAQUI", "TUCUNARÉ", "ARUANÃ", "ACARÁ", "CORVINA",
-
-        // Animais marinhos e aquáticos
-        "ÁGUA-VIVA", "BALEIA-AZUL", "BELUGA", "CACHALOTE", "CARAMUJO", "CARANGUEJO",
-        "CAVALO-MARINHO", "CORAL", "ESTRELA-DO-MAR", "FOCA", "GOLFINHO", "KRILL",
-        "LAGOSTA", "LULA", "MANATI", "MEXILHÃO", "NAUTILUS", "ORCA", "OSTRA", "POLVO",
-        "PULGA-DO-MAR", "SIRI", "TUBARÃO-BRANCO", "TUBARÃO-MARTELO", "OURIÇO-DO-MAR",
-        "PEIXE-BOI", "LONTRA-MARINHA", "ELEFANTE-MARINHO", "LEÃO-MARINHO", "NARVAL",
-        "TUBARÃO-BALEIA", "MANTA", "MOREIA", "ANÊMONA", "ESPONJA-DO-MAR", "ASCÍDIA",
-        "PEPINO-DO-MAR", "LÍRIO-DO-MAR", "ÁGUA-VIVA-LUA", "CARAVELA-PORTUGUESA",
-
-        // Insetos
-        "ABELHA", "ABELHÃO", "BARATA", "BESOURO", "BORBOLETA", "CIGARRA", "CUPIM",
-        "DOURADINHA", "ESCARAVELHO", "FORMIGA", "GAFANHOTO", "GAFANHOTO-DO-DESERTO",
-        "GRILO", "JOANINHA", "LIBÉLULA", "LOUVA-A-DEUS", "MARIPOSA", "MOSCA", "MOSQUITO",
-        "PERNILONGO", "PULGA", "PIOLHO", "TATURANA", "VESPA", "VAGA-LUME", "BICHO-DA-SEDA",
-        "BROCA", "BARBEIRO", "MUTUCA", "TRIPS", "BICHO-PAU", "BICHO-FOLHA", "PAPILIO",
-        "ESCORPIÃO-VINAGRE", "LARVA", "LAGARTA", "ZANGÃO", "TÉRMITA",
-
-        // Aracnídeos e outros invertebrados
-        "ARANHA", "CARRAPATO", "ESCORPIÃO", "OPILIÃO", "ÁCARO", "TARÂNTULA", "VIÚVA-NEGRA",
-        "ARANHA-MARROM", "CARANGUEJEIRA", "CENTOPEIA", "LACRAIA", "MINHOCA", "SANGUESSUGA",
-        "PLANÁRIA", "NEMATÓDEO", "POLIQUETA", "LOMBRIGA", "CARAMUJO", "LESMA", "OCTÓPUS",
-        "TARDÍGRADO", "ONICÓFORO", "PSEUDOESCORPIÃO", "PIOLHO-DE-COBRA",
-
-        // Animais de fazenda
-        "BEZERRO", "BÚFALO", "CABRITO", "CAVALO", "CARNEIRO", "ÉGUA", "GALINHA", "GALO",
-        "GANSO", "MARRECO", "PORCA", "PORCO", "PÔNEI", "POTRO", "TOURO", "VACA", "VITELA",
-        "CORDEIRO", "JUMENTO", "BURRO", "PATO", "PERU", "CODORNA", "COELHO", "OVELHA",
-        "LHAMa", "ALPACA", "LHAMA", "EMU", "CISNE", "PAVÃO", "PINTINHO", "LEITÃO",
-
-        // Animais brasileiros
-        "ARARA-AZUL", "ARIRANHA", "ANTA", "BOTO-COR-DE-ROSA", "CACHORRO-DO-MATO",
-        "CAPIVARA", "CAXINGUELÊ", "CUTIA", "GATO-DO-MATO", "GAVIÃO-REAL", "JAGUATIRICA",
-        "JACUTINGA", "LOBO-GUARÁ", "MICO-LEÃO-DOURADO", "ONÇA-PINTADA", "ONÇA-PARDA",
-        "PACA", "PEIXE-BOI", "PREGUIÇA", "QUATI", "SAGUI", "SAUIM", "SERIEMA", "SUCURI",
-        "TAMANDUÁ-BANDEIRA", "TAMANDUÁ-MIRIM", "TATU-BOLA", "TATU-CANASTRA", "TATU-GALINHA",
-        "TUCANO-TOCO", "VEADO-CAMPEIRO", "VEADO-CATINGUEIRO", "JABUTI", "JACARÉ-AÇU",
-        "PIRARUCU", "TAMBAQUI", "TUCUNARÉ", "JIBOIA", "MURIQUI", "UACARI", "SAÍRA",
-        "SOLDADINHO", "MACACO-PREGO", "MACACO-ARANHA", "BUGIO", "CUXIÚ", "GUARIBA",
-
-        // Animais de regiões frias e desertos
-        "URSO-POLAR", "RAPOSA-DO-ÁRTICO", "LEBRE-ÁRTICA", "FOCA-LEOPARDO", "MORSA",
-        "PAPAGAIO-DO-MAR", "PINGUIM-IMPERADOR", "PINGUIM-AFRICANO", "FENNEC", "DROMEDÁRIO",
-        "CAMelo", "JERBOA", "ESCORPIÃO-DO-DESERTO", "ÓRIX", "SURICATO", "BISONTE",
-        "CARIBU", "ALCE", "LEOPARDO-DAS-NEVES", "IAQUE", "CHINCHILA", "LÊMURE",
-
-        // Animais pré-históricos e espécies conhecidas
-        "DINOSSAURO", "TIRANOSSAURO", "TRICERÁTOPO", "VELOCIRAPTOR", "ESTEGOSSAURO",
-        "BRAQUIOSSAURO", "ESPINOSSAURO", "PTERODÁCTILO", "PLESIOSSAURO", "MOSASSAURO",
-        "MAMUTE", "MASTODONTE", "MEGALODON", "SMILODON", "PTERANODON",
-
-        // Outros animais
-        "ALBATROZ", "ANÊMONA", "BICHO-PREGUIÇA", "BOTO", "CAMALEÃO", "CARACOL",
-        "CIGARRA", "CISNE", "CUPIM", "DONINHA", "ESQUILO-VOADOR", "FURÃO", "GAMBÁ",
-        "GOLFINHO-ROTADOR", "HARPia", "IRARA", "JERBOA", "KINKAJU", "MANGUSTO",
-        "MARMOTA", "MICO-ESTRELA", "NARVAL", "OCAPI", "PANGOLIM", "PICA-PAU", "QUOKKA",
-        "RATO-TOUPEIRA", "SALAMANDRA-GIGANTE", "TAPIR", "TARSIO", "TATU-PEBA", "WOMBAT",
-        "ZORRO"
-    ],
-    Verbos2: []
+// ---------- ELEMENTOS DO DOM ----------
+const telas = {
+  menu: document.getElementById('tela-menu'),
+  temas: document.getElementById('tela-temas'),
+  jogo: document.getElementById('tela-jogo')
 };
+
+const btns = {
+  normal: document.getElementById('btn-normal'),
+  voltarTemas: document.getElementById('btn-voltar-temas'),
+  voltarMenu: document.getElementById('btn-voltar'),
+  ajuda: document.getElementById('btn-ajuda'),
+  estatisticas: document.getElementById('btn-estatisticas'),
+  jogarNovamente: document.getElementById('btn-jogar-novamente'),
+  btnMenuModal: document.getElementById('btn-menu'),
+  fecharModalFim: document.getElementById('btn-fechar-modal'),
+  fecharAjuda: document.getElementById('btn-fechar-ajuda')
+};
+
+const elModal = document.getElementById('modal-fim');
+const elModalAjuda = document.getElementById('modal-ajuda');
+const elAvisos = document.getElementById('avisos');
+const elTabuleiro = document.getElementById('tabuleiro');
+const elTeclado = document.getElementById('teclado');
+
+// ---------- INICIALIZAÇÃO ----------
+document.addEventListener('DOMContentLoaded', () => {
+  carregarEstatisticas();
+  configurarEventos();
+  inicializarDicionario();
+});
+
+function configurarEventos() {
+  if (btns.normal) {
+    btns.normal.addEventListener('click', () => abrirTelaTemas());
+  }
+
+  btns.voltarTemas.addEventListener('click', () => trocarTela('menu'));
+  btns.voltarMenu.addEventListener('click', () => trocarTela('menu'));
+
+  // Abertura e fechamento do Modal de Ajuda (?)
+  btns.ajuda.addEventListener('click', () => {
+    elModalAjuda.classList.add('aberto');
+  });
+
+  btns.fecharAjuda.addEventListener('click', () => {
+    elModalAjuda.classList.remove('aberto');
+  });
+
+  elModalAjuda.addEventListener('click', (e) => {
+    if (e.target === elModalAjuda) {
+      elModalAjuda.classList.remove('aberto');
+    }
+  });
+
+  // Abertura e fechamento do Modal de Estatísticas / Fim
+  btns.estatisticas.addEventListener('click', mostrarEstatisticasModal);
+
+  btns.fecharModalFim.addEventListener('click', () => {
+    fecharModal();
+  });
+
+  elModal.addEventListener('click', (e) => {
+    if (e.target === elModal) {
+      fecharModal();
+    }
+  });
+
+  btns.jogarNovamente.addEventListener('click', () => {
+    fecharModal();
+    iniciarJogo(temaAtual);
+  });
+
+  btns.btnMenuModal.addEventListener('click', () => {
+    fecharModal();
+    trocarTela('menu');
+  });
+
+  elTeclado.addEventListener('click', (e) => {
+    const btn = e.target.closest('.tecla');
+    if (!btn || processandoTentativa) return;
+    const tecla = btn.dataset.tecla;
+    tratarEntrada(tecla);
+  });
+
+  elTabuleiro.addEventListener('click', (e) => {
+    const bloco = e.target.closest('.letra');
+    if (!bloco || jogoTerminado || processandoTentativa) return;
+    const linhaIndex = tentativas.length;
+    const linhaAtualEl = elTabuleiro.children[linhaIndex];
+
+    if (linhaAtualEl && linhaAtualEl.contains(bloco)) {
+      const index = Array.from(linhaAtualEl.children).indexOf(bloco);
+      if (index !== -1 && index <= palavraSecreta.length - 1) {
+        cursorPos = index;
+        atualizarLinhaAtiva();
+      }
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (!telas.jogo.classList.contains('ativa') || jogoTerminado || processandoTentativa) return;
+
+    const numColunas = palavraSecreta.length;
+
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      cursorPos = Math.max(0, cursorPos - 1);
+      atualizarLinhaAtiva();
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      cursorPos = Math.min(numColunas - 1, cursorPos + 1);
+      atualizarLinhaAtiva();
+    } else if (e.key === 'Enter') {
+      e.preventDefault(); // Evita comportamento padrão do navegador
+      tratarEntrada('ENTER');
+    } else if (e.key === 'Backspace') {
+      tratarEntrada('APAGAR');
+    } else {
+      const letra = e.key.toUpperCase();
+      if (/^[A-ZÃÁÂÀÉÊÍÓÔÕÚÇ]$/.test(letra)) {
+        tratarEntrada(letra);
+      }
+    }
+  });
+}
+
+// ---------- NAVEGAÇÃO ENTRE TELAS ----------
+function trocarTela(nomeTela) {
+  Object.values(telas).forEach(t => t.classList.remove('ativa'));
+  telas[nomeTela].classList.add('ativa');
+
+  if (nomeTela !== 'jogo') {
+    pararCronometro();
+  }
+}
+
+function abrirTelaTemas() {
+  modoAtual = 'normal';
+  const elTextoTemas = document.getElementById('texto-temas');
+  if (elTextoTemas) {
+    elTextoTemas.textContent = "Escolha um tema para jogar palavras de 5 letras.";
+  }
+
+  renderizarListaTemas();
+  trocarTela('temas');
+}
+
+function renderizarListaTemas() {
+  const container = document.getElementById('lista-temas');
+  container.innerHTML = '';
+
+  const emojis = {
+    Geral: '🌟',
+    Verbos: '⚡',
+    Alimentos: '🍎',
+    Objetos: '📦',
+    Animais: '🐾'
+  };
+
+  const lista = Object.keys(palavrasPorTema);
+
+  lista.forEach(tema => {
+    if (tema === 'Verbos2') return;
+
+    const btn = document.createElement('button');
+    btn.className = 'tema tema-botao';
+    btn.innerHTML = `
+      <span class="emoji">${emojis[tema] || '🎯'}</span>
+      <span>${tema}</span>
+    `;
+    btn.addEventListener('click', () => {
+      iniciarJogo(tema);
+      trocarTela('jogo');
+    });
+    container.appendChild(btn);
+  });
+}
+
+// ---------- LÓGICA DE JOGO ----------
+function iniciarJogo(tema) {
+  modoAtual = 'normal';
+  temaAtual = tema;
+  tentativas = [];
+  tentativaAtual = "";
+  cursorPos = 0;
+  jogoTerminado = false;
+  processandoTentativa = false;
+
+  let palavraCrua = sortearPalavra(tema);
+  palavraSecreta = removerAcentos(palavraCrua.trim().toUpperCase());
+
+  document.getElementById('tema-atual').textContent = tema;
+  document.getElementById('tela-jogo').className = 'tela ativa jogo-normal';
+  document.getElementById('contador-tentativas').textContent = `0/${LIMITE_TENTATIVAS}`;
+  document.getElementById('vitorias').textContent = estatisticas.vitorias;
+
+  const dicaTamanho = document.getElementById('dica-tamanho');
+  if (dicaTamanho) {
+    dicaTamanho.textContent = `Palavra de ${palavraSecreta.length} letras`;
+  }
+  elTabuleiro.classList.remove('oculto');
+
+  montarTabuleiro();
+  resetarTeclado();
+  iniciarCronometro();
+}
+
+function removerAcentos(texto) {
+  return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+// ---------- VALIDAÇÃO DE PALAVRAS ----------
+function palavraExiste(palavra) {
+  if (!palavra) return false;
+  const palFormatada = removerAcentos(palavra.trim().toLowerCase());
+  return dicionarioCompletoSet.has(palFormatada);
+}
+
+// ---------- TABULEIRO ----------
+function montarTabuleiro() {
+  elTabuleiro.innerHTML = '';
+  const numColunas = palavraSecreta.length;
+  elTabuleiro.style.setProperty('--colunas', numColunas);
+
+  for (let i = 0; i < LIMITE_TENTATIVAS; i++) {
+    const linha = document.createElement('div');
+    linha.className = 'linha';
+
+    for (let j = 0; j < numColunas; j++) {
+      const letra = document.createElement('div');
+      letra.className = 'letra';
+      linha.appendChild(letra);
+    }
+    elTabuleiro.appendChild(linha);
+  }
+  atualizarLinhaAtiva();
+}
+
+function atualizarLinhaAtiva() {
+  if (jogoTerminado) return;
+
+  const linhaIndex = tentativas.length;
+  if (linhaIndex >= LIMITE_TENTATIVAS) return;
+
+  const linhaAtual = elTabuleiro.children[linhaIndex];
+  if (!linhaAtual) return;
+
+  const letras = linhaAtual.children;
+  const numColunas = palavraSecreta.length;
+
+  for (let i = 0; i < numColunas; i++) {
+    const char = tentativaAtual[i] || '';
+    letras[i].textContent = char;
+
+    letras[i].className = 'letra';
+    if (char && char !== ' ') {
+      letras[i].classList.add('preenchida');
+    }
+    if (i === cursorPos && i < numColunas) {
+      letras[i].classList.add('ativa');
+    }
+  }
+}
+
+// ---------- ENTRADA ----------
+function tratarEntrada(tecla) {
+  if (jogoTerminado || processandoTentativa) return;
+
+  const numColunas = palavraSecreta.length;
+
+  if (tecla === 'APAGAR') {
+    let arrayLetras = tentativaAtual.split('');
+    while (arrayLetras.length < numColunas) {
+      arrayLetras.push(' ');
+    }
+
+    if (cursorPos > 0 && (cursorPos === tentativaAtual.length || arrayLetras[cursorPos] === ' ')) {
+      cursorPos--;
+    }
+
+    arrayLetras[cursorPos] = ' ';
+
+    while (arrayLetras.length > 0 && arrayLetras[arrayLetras.length - 1] === ' ') {
+      arrayLetras.pop();
+    }
+
+    tentativaAtual = arrayLetras.join('').trimEnd();
+    atualizarLinhaAtiva();
+  } else if (tecla === 'ENTER') {
+    let palavraLimpa = tentativaAtual.replace(/\s/g, '');
+    if (palavraLimpa.length < numColunas || tentativaAtual.includes(' ')) {
+      tremerLinha();
+      mostrarAviso(`A palavra precisa ter ${numColunas} letras completas!`);
+      return;
+    }
+    submeterTentativa();
+  } else {
+    let arrayLetras = tentativaAtual.split('');
+
+    while (arrayLetras.length < numColunas) {
+      arrayLetras.push(' ');
+    }
+
+    arrayLetras[cursorPos] = tecla;
+    tentativaAtual = arrayLetras.join('').trimEnd();
+
+    cursorPos = Math.min(cursorPos + 1, numColunas - 1);
+    atualizarLinhaAtiva();
+  }
+}
+
+function tremerLinha() {
+  const linhaIndex = tentativas.length;
+  const linha = elTabuleiro.children[linhaIndex];
+  if (linha) {
+    linha.classList.add('tremer');
+    setTimeout(() => linha.classList.remove('tremer'), 400);
+  }
+}
+
+function submeterTentativa() {
+  if (jogoTerminado || processandoTentativa) return;
+
+  const pal = removerAcentos(tentativaAtual.trim().toUpperCase());
+
+  if (pal.length !== palavraSecreta.length || pal.includes(' ') || pal.length < palavraSecreta.length) {
+    tremerLinha();
+    mostrarAviso("A palavra está incompleta!");
+    return;
+  }
+
+  if (!palavraExiste(pal)) {
+    tremerLinha();
+    mostrarAviso("Essa palavra não é aceita!");
+    return;
+  }
+
+  // Ativa a trava para bloquear novas entradas e envios enquanto a animação ocorre
+  processandoTentativa = true;
+
+  tentativas.push(pal);
+
+  const linhaIndex = tentativas.length - 1;
+  const linha = elTabuleiro.children[linhaIndex];
+
+  if (!linha) {
+    tentativas.pop();
+    processandoTentativa = false;
+    mostrarAviso("Não foi possível registrar a tentativa.");
+    return;
+  }
+
+  const letrasEl = linha.children;
+
+  document.getElementById('contador-tentativas').textContent =
+    `${tentativas.length}/${LIMITE_TENTATIVAS}`;
+
+  const segredoArray = palavraSecreta.split('');
+  const resultado = new Array(palavraSecreta.length).fill('errada');
+
+  // 1. Posicoes corretas (Verde)
+  for (let i = 0; i < palavraSecreta.length; i++) {
+    if (pal[i] === segredoArray[i]) {
+      resultado[i] = 'correta';
+      segredoArray[i] = null;
+    }
+  }
+
+  // 2. Letras existentes (Amarelo)
+  for (let i = 0; i < palavraSecreta.length; i++) {
+    if (resultado[i] !== 'correta') {
+      const pos = segredoArray.indexOf(pal[i]);
+      if (pos !== -1) {
+        resultado[i] = 'existe';
+        segredoArray[pos] = null;
+      }
+    }
+  }
+
+  for (let i = 0; i < palavraSecreta.length; i++) {
+    setTimeout(() => {
+      letrasEl[i].classList.add('revelando', resultado[i]);
+      atualizarTeclado(pal[i], resultado[i]);
+    }, i * 120);
+  }
+
+  setTimeout(() => {
+    if (pal === palavraSecreta) {
+      finalizarJogo(true);
+    } else if (tentativas.length >= LIMITE_TENTATIVAS) {
+      finalizarJogo(false);
+    } else {
+      tentativaAtual = "";
+      cursorPos = 0;
+      atualizarLinhaAtiva();
+      processandoTentativa = false; // Libera a trava para a próxima tentativa
+    }
+  }, palavraSecreta.length * 120 + 200);
+}
+
+function atualizarTeclado(letra, estado) {
+  const btnTecla = elTeclado.querySelector(`[data-tecla="${letra}"]`);
+  if (!btnTecla) return;
+
+  if (estado === 'correta') {
+    btnTecla.className = 'tecla correta';
+  } else if (estado === 'existe' && !btnTecla.classList.contains('correta')) {
+    btnTecla.className = 'tecla existe';
+  } else if (estado === 'errada' && !btnTecla.classList.contains('correta') && !btnTecla.classList.contains('existe')) {
+    btnTecla.className = 'tecla errada';
+  }
+}
+
+function resetarTeclado() {
+  const teclas = elTeclado.querySelectorAll('.tecla');
+  teclas.forEach(t => {
+    if (t.classList.contains('enviar')) {
+      t.className = 'tecla especial enviar';
+    } else if (t.classList.contains('especial')) {
+      t.className = 'tecla especial';
+    } else {
+      t.className = 'tecla';
+    }
+  });
+}
+
+// ---------- CRONÔMETRO ----------
+function iniciarCronometro() {
+  pararCronometro();
+  segundosDecorridos = 0;
+  document.getElementById('tempo').textContent = "00:00";
+
+  intervaloTempo = setInterval(() => {
+    segundosDecorridos++;
+    const mins = String(Math.floor(segundosDecorridos / 60)).padStart(2, '0');
+    const segs = String(segundosDecorridos % 60).padStart(2, '0');
+    document.getElementById('tempo').textContent = `${mins}:${segs}`;
+  }, 1000);
+}
+
+function pararCronometro() {
+  if (intervaloTempo) clearInterval(intervaloTempo);
+}
+
+// ---------- ESTATÍSTICAS E MODAL ----------
+function finalizarJogo(vitoria) {
+  jogoTerminado = true;
+  pararCronometro();
+
+  estatisticas.jogos++;
+  if (vitoria) {
+    estatisticas.vitorias++;
+    estatisticas.sequencia++;
+
+    const linhaIndex = tentativas.length - 1;
+    if (elTabuleiro.children[linhaIndex]) {
+      elTabuleiro.children[linhaIndex].classList.add('vitoria');
+    }
+  } else {
+    estatisticas.sequencia = 0;
+  }
+
+  salvarEstatisticas();
+  document.getElementById('vitorias').textContent = estatisticas.vitorias;
+
+  setTimeout(() => {
+    abrirModalResultado(vitoria);
+  }, 600);
+}
+
+function abrirModalResultado(vitoria) {
+  const elTitulo = document.getElementById('resultado-titulo');
+  const elTexto = document.getElementById('resultado-texto');
+  const elPalavra = document.getElementById('resultado-palavra');
+
+  limparContainerEstatisticas();
+
+  btns.jogarNovamente.style.display = ''; // mostra "Jogar de novo" ao fim da rodada
+
+  if (vitoria) {
+    elTitulo.textContent = "Você acertou! 🎉";
+    elTexto.textContent = "Parabéns, a palavra era:";
+  } else {
+    elTitulo.textContent = "Que pena! 😢";
+    elTexto.textContent = "A palavra correta era:";
+  }
+
+  elPalavra.style.display = 'inline-block';
+  elPalavra.textContent = palavraSecreta;
+  elModal.classList.add('aberto');
+}
+
+function fecharModal() {
+  elModal.classList.remove('aberto');
+  limparContainerEstatisticas();
+}
+
+function limparContainerEstatisticas() {
+  const container = elModal.querySelector('.estatisticas');
+  if (container) container.remove();
+}
+
+function carregarEstatisticas() {
+  const dados = localStorage.getItem('termo_estatisticas');
+  if (dados) {
+    try {
+      estatisticas = JSON.parse(dados);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+}
+
+function salvarEstatisticas() {
+  localStorage.setItem('termo_estatisticas', JSON.stringify(estatisticas));
+}
+
+function mostrarEstatisticasModal() {
+  const percentual = estatisticas.jogos > 0
+    ? Math.round((estatisticas.vitorias / estatisticas.jogos) * 100)
+    : 0;
+
+  const elTitulo = document.getElementById('resultado-titulo');
+  const elTexto = document.getElementById('resultado-texto');
+  const elPalavra = document.getElementById('resultado-palavra');
+
+  elTitulo.textContent = "Suas Estatísticas";
+  elTexto.textContent = "";
+  elPalavra.style.display = 'none';
+  btns.jogarNovamente.style.display = 'none'; // esconde "Jogar de novo" nas estatísticas
+
+  limparContainerEstatisticas();
+
+  const container = document.createElement('div');
+  container.className = 'estatisticas';
+  container.innerHTML = `
+    <div class="estatistica"><strong>${estatisticas.jogos}</strong><span>Jogos</span></div>
+    <div class="estatistica"><strong>${percentual}%</strong><span>Vitórias</span></div>
+    <div class="estatistica"><strong>${estatisticas.sequencia}</strong><span>Sequência</span></div>
+  `;
+
+  elPalavra.parentNode.insertBefore(container, elPalavra.nextSibling);
+  elModal.classList.add('aberto');
+}
+
+// ---------- AVISOS ----------
+function mostrarAviso(texto) {
+  const aviso = document.createElement('div');
+  aviso.className = 'aviso';
+  aviso.textContent = texto;
+
+  elAvisos.appendChild(aviso);
+
+  setTimeout(() => {
+    aviso.classList.add('saindo');
+    setTimeout(() => aviso.remove(), 300);
+  }, 2500);
+}
+
+// =====================================================
+// ANIMAÇÃO DE BLOCOS DO TERMO CAINDO (CANVAS TOTAL)
+// =====================================================
+document.addEventListener('DOMContentLoaded', () => {
+  const canvas = document.getElementById('canvas-fundo');
+  if (!canvas) return;
+
+  const ctx = canvas.getContext('2d');
+  const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+  const estilosCores = [
+    { bg: 'rgba(35, 134, 54, 0.75)', border: 'rgba(46, 160, 67, 0.9)', texto: '#ffffff' },
+    { bg: 'rgba(158, 106, 3, 0.75)', border: 'rgba(187, 128, 9, 0.9)', texto: '#ffffff' },
+    { bg: 'rgba(48, 54, 61, 0.75)', border: 'rgba(139, 148, 158, 0.4)', texto: '#8b949e' }
+  ];
+
+  const tamanhoBloco = 38;
+  const espacamento = 12;
+  const larguraColuna = tamanhoBloco + espacamento;
+  let colunas = 0;
+  let gotas = [];
+  let letrasFixas = [];
+  let estilosFixos = [];
+
+  function ajustarTamanho() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    colunas = Math.floor(canvas.width / larguraColuna);
+
+    gotas = Array(colunas).fill(1).map(() => Math.floor(Math.random() * -30));
+    letrasFixas = Array(colunas).fill('').map(() => letras[Math.floor(Math.random() * letras.length)]);
+    estilosFixos = Array(colunas).fill(0).map(() => estilosCores[Math.floor(Math.random() * estilosCores.length)]);
+  }
+
+  ajustarTamanho();
+  window.addEventListener('resize', ajustarTamanho);
+
+  function desenharBlocoTermo(x, y, letra, estilo, opacidade) {
+    const raioBorda = 8;
+
+    ctx.save();
+    ctx.globalAlpha = opacidade;
+
+    ctx.fillStyle = estilo.bg;
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(x, y, tamanhoBloco, tamanhoBloco, raioBorda);
+    } else {
+      ctx.rect(x, y, tamanhoBloco, tamanhoBloco);
+    }
+    ctx.fill();
+
+    ctx.strokeStyle = estilo.border;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.fillStyle = estilo.texto;
+    ctx.font = `bold 18px 'Bricolage Grotesque', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(letra, x + tamanhoBloco / 2, y + tamanhoBloco / 2);
+
+    ctx.restore();
+  }
+
+  function animarBlocos() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (let i = 0; i < colunas; i++) {
+      const x = i * larguraColuna + espacamento / 2;
+      const y = gotas[i] * (tamanhoBloco + espacamento);
+      const letra = letrasFixas[i];
+      const estilo = estilosFixos[i];
+
+      let opacidade = 0.35;
+      if (y < 100) {
+        opacidade = (y / 100) * 0.35;
+      } else if (y > canvas.height - 150) {
+        opacidade = ((canvas.height - y) / 150) * 0.35;
+      }
+
+      if (opacidade > 0 && y > -tamanhoBloco) {
+        desenharBlocoTermo(x, y, letra, estilo, Math.max(0, opacidade));
+      }
+
+      if (y > canvas.height && Math.random() > 0.96) {
+        gotas[i] = -2;
+        letrasFixas[i] = letras[Math.floor(Math.random() * letras.length)];
+        estilosFixos[i] = estilosCores[Math.floor(Math.random() * estilosCores.length)];
+      }
+
+      gotas[i] += 0.07;
+    }
+
+    requestAnimationFrame(animarBlocos);
+  }
+
+  animarBlocos();
+});
+
+// =====================================================
+// =====================================================
+document.addEventListener('DOMContentLoaded', () => {
+  const musica = new Audio('https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3');
+  musica.loop = true;
+  musica.volume = 0.2;
+
+  let tocando = false;
+  const btnMusica = document.getElementById('btn-musica');
+
+  function tocarAudio() {
+    return musica.play().then(() => {
+      tocando = true;
+      if (btnMusica) btnMusica.textContent = '🎵';
+    }).catch(err => {
+      tocando = false;
+      if (btnMusica) btnMusica.textContent = '🔇';
+    });
+  }
+
+  function pausarAudio() {
+    musica.pause();
+    tocando = false;
+    if (btnMusica) btnMusica.textContent = '🔇';
+  }
+
+  function alternarMusica() {
+    if (tocando) {
+      pausarAudio();
+    } else {
+      tocarAudio();
+    }
+  }
+
+  if (btnMusica) {
+    btnMusica.addEventListener('click', (e) => {
+      e.stopPropagation();
+      alternarMusica();
+    });
+  }
+
+  tocarAudio();
+
+  const iniciarGarantido = () => {
+    if (!tocando) {
+      tocarAudio();
+    }
+    document.removeEventListener('pointerdown', iniciarGarantido);
+    document.removeEventListener('click', iniciarGarantido);
+    document.removeEventListener('keydown', iniciarGarantido);
+  };
+
+  document.addEventListener('pointerdown', iniciarGarantido);
+  document.addEventListener('click', iniciarGarantido);
+  document.addEventListener('keydown', iniciarGarantido);
+});
